@@ -24,7 +24,7 @@ X = [x; ones(1, num)];
 if lambda_r == 0
     W_out = d * pinv(X);
 elseif lambda_r > 0
-    W_out = d * X' * inv(X*X' + lambda_r * eye(Nh+1));
+    W_out = d * (X' / (X*X' + lambda_r * eye(Nh+1)));
 end
 
 end
