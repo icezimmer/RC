@@ -5,61 +5,71 @@ classdef ReservoirComputing
     properties
         InputDimension
         InputScaling
+        BiasScaling
         NeuronsNumber
+        OdeFunction
         InitialCondition
+        NumericalMethod
+        StepSize
         SpectralRadius
         Density
-        LeakyFactor
+        %LeakyFactor
         WashOut
         Regularization
-        LayersNumber
+        %LayersNumber
         Seed
+        Bias
         InputWeights
         HiddenWeights
-        HiddenHiddenWeights
+        %HiddenHiddenWeights
         OutputWeights
     end
 
     methods
-        function obj = ReservoirComputing(Nu, omega_in, Nh, x0, rho, dns, a, ws, lambda_r, Nl, seed)
-            if a < 0 || a > 1
-                error('The parameter a must be in [0, 1]')
-            else
+        function obj = ReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, rho, dns, ws, lambda_r, seed)
+            %if a < 0 || a > 1
+            %    error('The parameter a must be in [0, 1]')
+            %else
             obj.InputDimension = Nu;
             obj.InputScaling = omega_in;
+            obj.BiasScaling = omega_b;
             obj.NeuronsNumber = Nh;
+            obj.OdeFunction = f;
             obj.InitialCondition = x0;
+            obj.NumericalMethod = phi;
+            obj.StepSize = eps;
             obj.SpectralRadius = rho;
             obj.Density = dns;
-            obj.LeakyFactor = a;
+            %obj.LeakyFactor = a;
             obj.WashOut = ws;
             obj.Regularization = lambda_r;
-            obj.LayersNumber = Nl;
+            %obj.LayersNumber = Nl;
             obj.Seed = seed;
-            obj.InputWeights = initInputMatrix(Nu, omega_in, Nh, seed, a);
-            obj.HiddenWeights = initStateMatrix(Nh, rho, seed, dns, a);
-            obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
+            obj.Bias = initBias(Nh, omega_b, seed);
+            obj.InputWeights = initInputMatrix(Nu, omega_in, Nh, seed);
+            obj.HiddenWeights = initStateMatrix(Nh, rho, seed, dns);
+            %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.OutputWeights = [];
-            end
+            %end
         end
 
 
         function [hidden, hidden_washout] = hiddenState(obj, input_data)
-            hidden = cell(size(input_data,1), obj.LayersNumber);
-            hidden_washout = cell(size(input_data,1), obj.LayersNumber);
+            hidden = cell(size(input_data,1), 1);
+            hidden_washout = cell(size(input_data,1), 1);
+            %hidden = cell(size(input_data,1), obj.LayersNumber);
+            %hidden_washout = cell(size(input_data,1), obj.LayersNumber);
 
             num_samples = size(input_data,1);
             for index_sample=1:num_samples
                 time_steps = size(input_data{index_sample},2);
-                % Add ones to input for bias
-                input_sample = zeros(obj.InputDimension+1,time_steps);
-                input_sample(1:end-1,:) = input_data{index_sample};
-                input_sample(end,:) = ones(1, time_steps);
+                input_sample = input_data{index_sample};
                
                 hidden_sample = zeros(obj.NeuronsNumber,time_steps);
                 hidden_sample(:,1) = obj.InitialCondition;
                 for t=1:time_steps
-                    hidden_sample(:,t+1) = (1-obj.LeakyFactor)*hidden_sample(:,t) + obj.LeakyFactor*tanh(obj.InputWeights*input_sample(:,t) + obj.HiddenWeights*hidden_sample(:,t));
+                    %hidden_sample(:,t+1) = (1-obj.LeakyFactor)*hidden_sample(:,t) + obj.LeakyFactor*tanh(obj.InputWeights*input_sample(:,t) + obj.HiddenWeights*hidden_sample(:,t));
+                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.InputWeights, input_sample(:,t), obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize);
                 end
                 % Discard the initial state
                 hidden_sample = hidden_sample(:, 2:end);
@@ -69,27 +79,27 @@ classdef ReservoirComputing
                 hidden_washout{index_sample,1} = hidden_sample;
             end
 
-            for layer=1:obj.LayersNumber-1
-                for index_sample=1:num_samples
-                    time_steps = size(input_data{index_sample},2);
-                    % Add ones to input for bias
-                    input_sample = zeros(obj.NeuronsNumber+1,time_steps);
-                    input_sample(1:end-1,:) = hidden{index_sample,layer};
-                    input_sample(end,:) = ones(1, time_steps);
-                   
-                    hidden_sample = zeros(obj.NeuronsNumber,time_steps);
-                    hidden_sample(:,1) = obj.InitialCondition;
-                    for t=1:time_steps
-                        hidden_sample(:,t+1) = (1-obj.LeakyFactor)*hidden_sample(:,t) + obj.LeakyFactor*tanh(obj.HiddenHiddenWeights*input_sample(:,t) + obj.HiddenWeights*hidden_sample(:,t));
-                    end
-                    % Discard the initial state
-                    hidden_sample = hidden_sample(:, 2:end);
-                    hidden{index_sample,layer+1} = hidden_sample;
-                    % Discard the washout
-                    hidden_sample = hidden_sample(:, obj.WashOut+1:end);
-                    hidden_washout{index_sample,layer+1} = hidden_sample;
-                end
-            end
+%             for layer=1:obj.LayersNumber-1
+%                 for index_sample=1:num_samples
+%                     time_steps = size(input_data{index_sample},2);
+%                     % Add ones to input for bias
+%                     input_sample = zeros(obj.NeuronsNumber+1,time_steps);
+%                     input_sample(1:end-1,:) = hidden{index_sample,layer};
+%                     input_sample(end,:) = ones(1, time_steps);
+%                    
+%                     hidden_sample = zeros(obj.NeuronsNumber,time_steps);
+%                     hidden_sample(:,1) = obj.InitialCondition;
+%                     for t=1:time_steps
+%                         hidden_sample(:,t+1) = (1-obj.LeakyFactor)*hidden_sample(:,t) + obj.LeakyFactor*tanh(obj.HiddenHiddenWeights*input_sample(:,t) + obj.HiddenWeights*hidden_sample(:,t));
+%                     end
+%                     % Discard the initial state
+%                     hidden_sample = hidden_sample(:, 2:end);
+%                     hidden{index_sample,layer+1} = hidden_sample;
+%                     % Discard the washout
+%                     hidden_sample = hidden_sample(:, obj.WashOut+1:end);
+%                     hidden_washout{index_sample,layer+1} = hidden_sample;
+%                 end
+%             end
         end
 
         function [obj, prediction, hidden, hidden_washout] = fit(obj, input_data, target_data, num_classes)

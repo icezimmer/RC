@@ -1,15 +1,11 @@
-function W_hat = initStateMatrix(Nh, rho, seed, dns, a)
+function W_hat = initStateMatrix(Nh, rho, seed, dns)
 rng(seed)
 
-%LI-ESN
-if a > 0
-    W_hat = 2*sprand(Nh,Nh, dns) - 1;
-    W_tilde = (1-a)*speye(Nh) + a*W_hat;
-    W_tilde = rho * (W_tilde / max(abs(eig(W_tilde))));
-    W_hat = (1/a)*(W_tilde - (1-a)*speye(Nh));
-else
-    W_hat = sparse(Nh,Nh);
-end
+W_hat = sprand(Nh,Nh, dns);
+mask = W_hat~=0;
+W_hat(mask) = 2*W_hat(mask) -1;
+
+W_hat = rho * (W_hat / abs(eigs(W_hat, 1)));
 
 end
 
