@@ -45,9 +45,10 @@ classdef ReservoirComputing
             obj.Regularization = lambda_r;
             %obj.LayersNumber = Nl;
             obj.Seed = seed;
-            obj.Bias = initBias(Nh, omega_b, seed);
-            obj.InputWeights = initInputMatrix(Nu, omega_in, Nh, seed);
-            obj.HiddenWeights = initStateMatrix(Nh, rho, seed, dns);
+            obj.Bias = bias(Nh, omega_b, seed);
+            obj.InputWeights = inputMatrix(Nu, omega_in, Nh, seed);
+            %obj.HiddenWeights = discreteStateMatrix(Nh, rho, seed, dns);
+            obj.HiddenWeights = continuousStateMatrix(Nh, -Nh:-1, seed);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.OutputWeights = [];
             %end
