@@ -1,4 +1,4 @@
-classdef ReservoirComputing
+classdef ContinuousReservoirComputing
     %UNTITLED Summary of this class goes here
     %   Detailed eobj.Hiddenplanation goes here
 
@@ -11,10 +11,9 @@ classdef ReservoirComputing
         InitialCondition
         NumericalMethod
         StepSize
-        SpectralRadius
+        EigenValues
         Density
-        %LeakyFactor
-        WashOut
+        Transient
         Regularization
         %LayersNumber
         Seed
@@ -26,7 +25,7 @@ classdef ReservoirComputing
     end
 
     methods
-        function obj = ReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, rho, dns, ws, lambda_r, seed)
+        function obj = ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, dns, ws, lambda_r, seed)
             %if a < 0 || a > 1
             %    error('The parameter a must be in [0, 1]')
             %else
@@ -38,17 +37,15 @@ classdef ReservoirComputing
             obj.InitialCondition = x0;
             obj.NumericalMethod = phi;
             obj.StepSize = eps;
-            obj.SpectralRadius = rho;
+            obj.EigenValues = eigs;
             obj.Density = dns;
-            %obj.LeakyFactor = a;
-            obj.WashOut = ws;
+            obj.Transient = ws;
             obj.Regularization = lambda_r;
             %obj.LayersNumber = Nl;
             obj.Seed = seed;
             obj.Bias = bias(Nh, omega_b, seed);
             obj.InputWeights = inputMatrix(Nu, omega_in, Nh, seed);
-            %obj.HiddenWeights = discreteStateMatrix(Nh, rho, seed, dns);
-            obj.HiddenWeights = continuousStateMatrix(Nh, -Nh:-1, seed);
+            obj.HiddenWeights = continuousStateMatrix(Nh, eigs, seed);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.OutputWeights = [];
             %end
@@ -69,14 +66,13 @@ classdef ReservoirComputing
                 hidden_sample = zeros(obj.NeuronsNumber,time_steps);
                 hidden_sample(:,1) = obj.InitialCondition;
                 for t=1:time_steps
-                    %hidden_sample(:,t+1) = (1-obj.LeakyFactor)*hidden_sample(:,t) + obj.LeakyFactor*tanh(obj.InputWeights*input_sample(:,t) + obj.HiddenWeights*hidden_sample(:,t));
                     hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.InputWeights, input_sample(:,t), obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize);
                 end
                 % Discard the initial state
                 hidden_sample = hidden_sample(:, 2:end);
                 hidden{index_sample,1} = hidden_sample;
-                % Discard the washout
-                hidden_sample = hidden_sample(:, obj.WashOut+1:end);
+                % Discard the transient
+                hidden_sample = hidden_sample(:, obj.Transient+1:end);
                 hidden_washout{index_sample,1} = hidden_sample;
             end
 
@@ -96,8 +92,8 @@ classdef ReservoirComputing
 %                     % Discard the initial state
 %                     hidden_sample = hidden_sample(:, 2:end);
 %                     hidden{index_sample,layer+1} = hidden_sample;
-%                     % Discard the washout
-%                     hidden_sample = hidden_sample(:, obj.WashOut+1:end);
+%                     % Discard the transient
+%                     hidden_sample = hidden_sample(:, obj.Transient+1:end);
 %                     hidden_washout{index_sample,layer+1} = hidden_sample;
 %                 end
 %             end
@@ -111,7 +107,7 @@ classdef ReservoirComputing
             target_data_t = target_data';
             target_data_mat = one_hot(:,[target_data_t{:}]);
 
-            obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization, obj.WashOut);
+            obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization, obj.Transient);
             output_mat = readout(hidden_mat, obj.OutputWeights);
             [~, prediction_mat] = max(output_mat,[],1);
 

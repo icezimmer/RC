@@ -27,36 +27,21 @@ ts_tg = kron(ts_tg, ones(1,time_steps));
 Nu = size(input_data, 1);
 omega_in = 0.4; 
 omega_b = 0.2;
-Nh = 400;
+Nh = 1000;
 f = @(bias, input_weights, input, hidden_weights, hidden) tanh(bias + input_weights*input + hidden_weights*hidden);
 x0 = zeros(Nh,1);
-phi = @rungeKutta;
+phi = @eulerForward;
 eps = 0.0001;
-rho = 1.1;
-dns = 0.1;
+eigs = -1*ones(Nh,1); rho = 0.9;
+dns = 0.1; a = 0.5;
 %a = 0.1;
 ws = 0;
 lambda_r = 0.1; 
 %Nl = 1;
 seed = 1;
 
-rc=ReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, rho, dns, ws, lambda_r, seed);
-
-% hid = rc.hiddenState(dv_layer_in);
-% 
-% layers = [ ...
-%     sequenceInputLayer(Nh)
-%     gruLayer(10, OutputMode="sequence")
-%     fullyConnectedLayer(7)
-%     softmaxLayer
-%     classificationLayer];
-% options = trainingOptions('adam', ...
-%     MiniBatchSize=size(dv_layer_tg, 1), ...
-%     MaxEpochs=100, ...
-%     GradientThreshold=2, ...
-%     shuffle='never', ...
-%     Verbose=1);
-% [net, info] = trainNetwork(hid,dv_layer_tg,layers,options);
+%rc=ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, dns, ws, lambda_r, seed);
+rc=DiscreteReservoirComputing(Nu, omega_in, omega_b, Nh, x0, rho, dns, a, ws, lambda_r, seed);
 
 [rc,pred_tr]=rc.fit(dv_layer_in,dv_layer_tg,7);
 figure
