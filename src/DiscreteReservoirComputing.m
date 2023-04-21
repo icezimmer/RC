@@ -24,31 +24,32 @@ classdef DiscreteReservoirComputing
 
     methods
         function obj = DiscreteReservoirComputing(Nu, omega_in, omega_b, Nh, x0, rho, dns, a, ws, lambda_r, seed)
-            %if a < 0 || a > 1
-            %    error('The parameter a must be in [0, 1]')
-            %else
-            obj.InputDimension = Nu;
-            obj.InputScaling = omega_in;
-            obj.BiasScaling = omega_b;
-            obj.NeuronsNumber = Nh;
-            obj.InitialCondition = x0;
-            obj.SpectralRadius = rho;
-            obj.Density = dns;
-            obj.LeakyFactor = a;
-            obj.Transient = ws;
-            obj.Regularization = lambda_r;
-            %obj.LayersNumber = Nl;
-            obj.Seed = seed;
-            obj.Bias = bias(Nh, omega_b, seed);
-            obj.InputWeights = inputMatrix(Nu, omega_in, Nh, seed);
-            obj.HiddenWeights = discreteStateMatrix(Nh, rho, seed, dns, a);
-            %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
-            obj.OutputWeights = [];
-            %end
+            if a < 0 || a > 1
+                error('The parameter a must be in [0, 1]')
+            else
+                obj.InputDimension = Nu;
+                obj.InputScaling = omega_in;
+                obj.BiasScaling = omega_b;
+                obj.NeuronsNumber = Nh;
+                obj.InitialCondition = x0;
+                obj.SpectralRadius = rho;
+                obj.Density = dns;
+                obj.LeakyFactor = a;
+                obj.Transient = ws;
+                obj.Regularization = lambda_r;
+                %obj.LayersNumber = Nl;
+                obj.Seed = seed;
+                obj.Bias = bias(Nh, omega_b, seed);
+                obj.InputWeights = inputMatrix(Nu, omega_in, Nh, seed);
+                obj.HiddenWeights = discreteStateMatrix(Nh, rho, seed, dns, a);
+                %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
+                obj.OutputWeights = [];
+            end
         end
 
 
-        function [hidden, hidden_washout] = hiddenState(obj, input_data)
+        function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)
+            pooler = cell(size(input_data,1), 1);
             hidden = cell(size(input_data,1), 1);
             hidden_washout = cell(size(input_data,1), 1);
             %hidden = cell(size(input_data,1), obj.LayersNumber);
@@ -59,11 +60,13 @@ classdef DiscreteReservoirComputing
                 time_steps = size(input_data{index_sample},2);
                 input_sample = input_data{index_sample};
                
-                hidden_sample = zeros(obj.NeuronsNumber,time_steps);
+                hidden_sample = zeros(obj.NeuronsNumber,time_steps+1);
                 hidden_sample(:,1) = obj.InitialCondition;
                 for t=1:time_steps
                     hidden_sample(:,t+1) = (1-obj.LeakyFactor)*hidden_sample(:,t) + obj.LeakyFactor*tanh(obj.InputWeights*input_sample(:,t) + obj.HiddenWeights*hidden_sample(:,t));
                 end
+
+                pooler{index_sample,1} = hidden_sample(:,end);
                 % Discard the initial state
                 hidden_sample = hidden_sample(:, 2:end);
                 hidden{index_sample,1} = hidden_sample;
@@ -95,15 +98,16 @@ classdef DiscreteReservoirComputing
 %             end
         end
 
-        function [obj, prediction, hidden, hidden_washout] = fit(obj, input_data, target_data, num_classes)
+        function [obj, prediction, hidden, hidden_washout] = fit(obj, input_data, target_data)
             [hidden, hidden_washout] = hiddenState(obj, input_data);
             hidden_washout_mat = cell2mat(hidden_washout');
             hidden_mat = cell2mat(hidden');
-            one_hot = eye(num_classes);
-            target_data_t = target_data';
-            target_data_mat = one_hot(:,[target_data_t{:}]);
 
-            obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization, obj.Transient);
+            target_data_t = target_data';
+            target_data_t = washout(target_data_t, obj.Transient);
+            target_data_mat = onehotencode([target_data_t{:}], 1);
+
+            obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization);
             output_mat = readout(hidden_mat, obj.OutputWeights);
             [~, prediction_mat] = max(output_mat,[],1);
 

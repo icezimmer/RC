@@ -27,23 +27,23 @@ ts_tg = kron(ts_tg, ones(1,time_steps));
 Nu = size(input_data, 1);
 omega_in = 0.4; 
 omega_b = 0.2;
-Nh = 10;
+Nh = 100;
 f = @(bias, input_weights, input, hidden_weights, hidden) tanh(bias + input_weights*input + hidden_weights*hidden);
 x0 = zeros(Nh,1);
-phi = @eulerForward;
+phi = @rungeKutta;
 eps = 0.0001;
 eigs = -1*ones(Nh,1); rho = 0.9;
 dns = 0.1; a = 0.5;
 %a = 0.1;
-ws = 0;
+ws = 40;
 lambda_r = 0.1; 
 %Nl = 1;
 seed = 1;
 
-%rc=ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, dns, ws, lambda_r, seed);
+%rc=ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, ws, lambda_r, seed);
 rc=DiscreteReservoirComputing(Nu, omega_in, omega_b, Nh, x0, rho, dns, a, ws, lambda_r, seed);
 
-[rc,pred_tr]=rc.fit(dv_layer_in,dv_layer_tg,7);
+[rc,pred_tr]=rc.fit(dv_layer_in,dv_layer_tg);
 figure
 confusionchart([dv_layer_tg{:,:}], [pred_tr{:,:}]);
 title("TR")

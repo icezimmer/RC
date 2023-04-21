@@ -1,6 +1,9 @@
-function d = washout(d,ws)
+function d_washout = washout(d,ws)
+d_washout = {};
 
-d = reshape(d, [size(d,1), 480, size(d,2)/480]);
-d = d(:,1+ws:480,:);
-d = reshape(d,[size(d,1),(480-ws)*size(d,3)]);
+for i = 1:numel(d)
+    vector = d{i};
+    d_washout = cat(2,d_washout, {vector(1+ws:end)});
+end
+
 end
