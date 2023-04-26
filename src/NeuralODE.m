@@ -50,6 +50,8 @@ classdef NeuralODE
             pooler = cell(size(input_data,1), 1);
             %hidden = cell(size(input_data,1), obj.LayersNumber);
             %hidden_washout = cell(size(input_data,1), obj.LayersNumber);
+            
+            odefun = @(t,y) tanh(obj.Bias + obj.HiddenWeights*y);
 
             num_samples = size(input_data,1);
             for index_sample=1:num_samples
@@ -57,11 +59,14 @@ classdef NeuralODE
                 if size(input_sample, 2) > 1
                     input_sample = input_sample(:);
                 end
-                hidden_sample = zeros(obj.NeuronsNumber, 1+obj.TimeSteps);
-                hidden_sample(:,1) = double(input_sample);
-                for t=1:obj.TimeSteps
-                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize);
-                end
+%                 hidden_sample = zeros(obj.NeuronsNumber, 1+obj.TimeSteps);
+%                 hidden_sample(:,1) = double(input_sample);
+%                 for t=1:obj.TimeSteps
+%                     hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize);
+%                 end
+                tspan = linspace(0,1,obj.TimeSteps+1);
+                solution = ode45(odefun,tspan,double(input_sample));
+                hidden_sample = solution.y;
                 pooler{index_sample, 1} = hidden_sample(:,end);
                 hidden{index_sample,1} = hidden_sample;
                 % Discard the transient
@@ -76,8 +81,13 @@ classdef NeuralODE
             pooler_mat = cell2mat(pooler');
             hidden_washout_mat = cell2mat(hidden_washout');
             target_data_t = target_data';
-            target_data_mat = onehotencode(target_data_t, 1);
-            target_data_mat = kron(target_data_mat, ones(1,1+obj.TimeSteps-obj.Transient));
+
+            target_data_mat_start = onehotencode(target_data_t, 1);
+            target_data_mat = zeros(size(target_data_mat_start,1),0);
+            sizes = cellfun(@size,hidden_washout,'UniformOutput',false);
+            for index = 1:numel(hidden_washout)
+                target_data_mat = cat(2,target_data_mat,target_data_mat_start(:,index)*ones(1,sizes{index}(2)));
+            end
 
             obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization);
             output_mat = readout(pooler_mat, obj.OutputWeights);
