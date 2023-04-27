@@ -22,9 +22,6 @@ classdef NeuralODE
 
     methods
         function obj = NeuralODE(omega_b, Nh, ts, f, phi, eps, eigs, ws, lambda_r, seed)
-            %if a < 0 || a > 1
-            %    error('The parameter a must be in [0, 1]')
-            %else
             obj.BiasScaling = omega_b;
             obj.NeuronsNumber = Nh;
             obj.TimeSteps = ts;
@@ -40,7 +37,6 @@ classdef NeuralODE
             obj.HiddenWeights = continuousStateMatrix(Nh, eigs, seed);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.OutputWeights = [];
-            %end
         end
 
 
@@ -51,7 +47,7 @@ classdef NeuralODE
             %hidden = cell(size(input_data,1), obj.LayersNumber);
             %hidden_washout = cell(size(input_data,1), obj.LayersNumber);
             
-            odefun = @(t,y) tanh(obj.Bias + obj.HiddenWeights*y);
+%             odefun = @(t,y) tanh(obj.Bias + obj.HiddenWeights*y);
 
             num_samples = size(input_data,1);
             for index_sample=1:num_samples
@@ -59,14 +55,17 @@ classdef NeuralODE
                 if size(input_sample, 2) > 1
                     input_sample = input_sample(:);
                 end
-%                 hidden_sample = zeros(obj.NeuronsNumber, 1+obj.TimeSteps);
-%                 hidden_sample(:,1) = double(input_sample);
-%                 for t=1:obj.TimeSteps
-%                     hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize);
-%                 end
-                tspan = linspace(0,1,obj.TimeSteps+1);
-                solution = ode45(odefun,tspan,double(input_sample));
-                hidden_sample = solution.y;
+
+                hidden_sample = zeros(obj.NeuronsNumber, 1+obj.TimeSteps);
+                hidden_sample(:,1) = double(input_sample);
+                for t=1:obj.TimeSteps
+                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize);
+                end
+                
+%                 tspan = linspace(0,1,obj.TimeSteps+1);
+%                 solution = ode45(odefun,tspan,double(input_sample));
+%                 hidden_sample = solution.y;
+
                 pooler{index_sample, 1} = hidden_sample(:,end);
                 hidden{index_sample,1} = hidden_sample;
                 % Discard the transient
