@@ -52,9 +52,11 @@ classdef NeuralODE
             num_samples = size(input_data,1);
             for index_sample=1:num_samples
                 input_sample = input_data{index_sample};
-                if size(input_sample, 2) > 1
-                    input_sample = input_sample(:);
-                end
+
+%                 if size(input_sample, 2) > 1
+%                     input_sample = input_sample(:);
+%                 end
+                input_sample = inputAugmentation(input_sample, obj.NeuronsNumber);
 
                 hidden_sample = zeros(obj.NeuronsNumber, 1+obj.TimeSteps);
                 hidden_sample(:,1) = double(input_sample);
