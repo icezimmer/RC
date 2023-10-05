@@ -34,7 +34,7 @@ classdef NeuralODE
             %obj.LayersNumber = Nl;
             obj.Seed = seed;
             obj.Bias = bias(Nh, omega_b, seed);
-            obj.HiddenWeights = continuousStateMatrix(Nh, eigs, seed);
+            obj.HiddenWeights = continuousStateMatrix(eigs, seed);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.OutputWeights = [];
         end

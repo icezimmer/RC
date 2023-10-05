@@ -11,7 +11,7 @@ classdef ContinuousReservoirComputing
         InitialCondition
         NumericalMethod
         StepSize
-        EigenValues
+        Spectrum
         Transient
         Regularization
         %LayersNumber
@@ -33,14 +33,14 @@ classdef ContinuousReservoirComputing
             obj.InitialCondition = x0;
             obj.NumericalMethod = phi;
             obj.StepSize = eps;
-            obj.EigenValues = eigs;
+            obj.Spectrum = eigs;
             obj.Transient = ws;
             obj.Regularization = lambda_r;
             %obj.LayersNumber = Nl;
             obj.Seed = seed;
             obj.Bias = bias(Nh, omega_b, seed);
             obj.InputWeights = inputMatrix(Nu, omega_in, Nh, seed);
-            obj.HiddenWeights = continuousStateMatrix(Nh, eigs, seed);
+            obj.HiddenWeights = continuousStateMatrix(eigs, seed);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.OutputWeights = [];
             %end

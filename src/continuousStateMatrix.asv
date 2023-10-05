@@ -23,11 +23,9 @@ for eigenvalue = spectrum'
         end
     end
 end
-
 LAMBDA = blkdiag(LAMBDA_blocks{:});
 N = blkdiag(N_blocks{:});
-
-% Jordan matrix = diagonal matrix of eigenvalues + nilpotent matrix
+% Jordan matrix = diagonal matrix of eigenvalues + Nih
 J = LAMBDA + N;
 W_hat = J;
 
