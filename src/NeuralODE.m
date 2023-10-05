@@ -9,7 +9,7 @@ classdef NeuralODE
         OdeFunction
         NumericalMethod
         StepSize
-        EigenValues
+        Spectrum
         Transient
         Regularization
         %LayersNumber
@@ -28,7 +28,7 @@ classdef NeuralODE
             obj.OdeFunction = f;
             obj.NumericalMethod = phi;
             obj.StepSize = eps;
-            obj.EigenValues = eigs;
+            obj.Spectrum = eigs;
             obj.Transient = ws;
             obj.Regularization = lambda_r;
             %obj.LayersNumber = Nl;
