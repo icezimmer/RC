@@ -3,8 +3,9 @@ classdef NeuralODE
     %   Detailed eobj.Hiddenplanation goes here
 
     properties
+        InputNetwork
+        OutputNetwork
         BiasScaling
-        NeuronsNumber
         TimeSteps
         OdeFunction
         NumericalMethod
@@ -21,10 +22,11 @@ classdef NeuralODE
     end
 
     methods
-        function obj = NeuralODE(omega_b, Nh, ts, f, phi, eps, eigs, ws, lambda_r, seed)
+        function obj = NeuralODE(f_in, f_out, omega_b, T, f, phi, eps, eigs, ws, lambda_r, seed)
+            obj.InputNetwork = f_in;
+            obj.OutputNetwork = f_out;
             obj.BiasScaling = omega_b;
-            obj.NeuronsNumber = Nh;
-            obj.TimeSteps = ts;
+            obj.TimeSteps = floor(T/eps);
             obj.OdeFunction = f;
             obj.NumericalMethod = phi;
             obj.StepSize = eps;
@@ -33,7 +35,7 @@ classdef NeuralODE
             obj.Regularization = lambda_r;
             %obj.LayersNumber = Nl;
             obj.Seed = seed;
-            obj.Bias = bias(Nh, omega_b, seed);
+            obj.Bias = [];
             obj.HiddenWeights = continuousStateMatrix(eigs, seed);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.OutputWeights = [];
@@ -47,7 +49,7 @@ classdef NeuralODE
             %hidden = cell(size(input_data,1), obj.LayersNumber);
             %hidden_washout = cell(size(input_data,1), obj.LayersNumber);
             
-%             odefun = @(t,y) tanh(obj.Bias + obj.HiddenWeights*y);
+%           odefun = @(t,y) tanh(obj.Bias + obj.HiddenWeights*y);
 
             num_samples = size(input_data,1);
             for index_sample=1:num_samples
@@ -56,10 +58,13 @@ classdef NeuralODE
 %                 if size(input_sample, 2) > 1
 %                     input_sample = input_sample(:);
 %                 end
-                input_sample = inputAugmentation(input_sample, obj.NeuronsNumber);
+                input_sample = double(input_sample);
+                hidden_sample_0 = obj.InputNetwork(input_sample);
 
-                hidden_sample = zeros(obj.NeuronsNumber, 1+obj.TimeSteps);
-                hidden_sample(:,1) = double(input_sample);
+                obj.Bias = bias(length(hidden_sample_0), obj.BiasScaling, obj.Seed);
+                hidden_sample = zeros(length(hidden_sample_0), 1+obj.TimeSteps);
+
+                hidden_sample(:,1) = hidden_sample_0;
                 for t=1:obj.TimeSteps
                     hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize);
                 end
@@ -91,7 +96,7 @@ classdef NeuralODE
             end
 
             obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization);
-            output_mat = readout(pooler_mat, obj.OutputWeights);
+            output_mat = obj.OutputNetwork(pooler_mat, obj.OutputWeights);
             [~, prediction_mat] = max(output_mat,[],1);
 
             num_samples = size(input_data,1);
@@ -108,7 +113,7 @@ classdef NeuralODE
             hidden = hiddenState(obj, input_data);
             hidden_mat = cell2mat(hidden');
 
-            output_mat = readout(hidden_mat, obj.OutputWeights);
+            output_mat = obj.OutputNetwork(hidden_mat, obj.OutputWeights);
             [~, prediction_mat] = max(output_mat,[],1);
 
             num_samples = size(input_data,1);
