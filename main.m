@@ -40,15 +40,16 @@ lambda_r = 0.1;
 %Nl = 1;
 seed = 1;
 
-%rc=ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, ws, lambda_r, seed);
-rc=DiscreteReservoirComputing(Nu, omega_in, omega_b, Nh, x0, rho, dns, a, ws, lambda_r, seed);
+%crc = ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, ws, lambda_r, seed);
+drc = DiscreteReservoirComputing(Nu, omega_in, omega_b, Nh, x0, rho, dns, a, ws, lambda_r, seed);
 
-[rc,pred_tr]=rc.fit(dv_layer_in,dv_layer_tg);
+drc = drc.fit(dv_layer_in,dv_layer_tg);
+pred_tr = drc.classifySeq2Seq(dv_layer_in);
 figure
 confusionchart([dv_layer_tg{:,:}], [pred_tr{:,:}]);
 title("TR")
 
-pred_ts=rc.classify(ts_layer_in);
+pred_ts = drc.classifySeq2Seq(ts_layer_in);
 figure
 confusionchart([ts_layer_tg{:,:}], [pred_ts{:,:}]);
 title("TS")

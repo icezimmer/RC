@@ -62,7 +62,7 @@ classdef ContinuousReservoirComputing
                 hidden_sample = zeros(obj.NeuronsNumber,time_steps+1);
                 hidden_sample(:,1) = obj.InitialCondition;
                 for t=1:time_steps
-                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.InputWeights, input_sample(:,t), obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize);
+                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize, obj.InputWeights, input_sample(:,t));
                 end
 
                 pooler{index_sample,1} = hidden_sample(:,end);
@@ -97,32 +97,19 @@ classdef ContinuousReservoirComputing
 %             end
         end
 
-        function [obj, prediction, hidden, hidden_washout] = fit(obj, input_data, target_data)
-            [hidden, hidden_washout] = hiddenState(obj, input_data);
+        function obj = fit(obj, input_data, target_data)
+            [~, hidden_washout] = hiddenState(obj, input_data);
             hidden_washout_mat = cell2mat(hidden_washout');
-            hidden_mat = cell2mat(hidden');
+            % hidden_mat = cell2mat(hidden');
             
             target_data_t = target_data';
             target_data_t = washout(target_data_t, obj.Transient);
             target_data_mat = onehotencode([target_data_t{:}], 1);
 
             obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization);
-            output_mat = readout(hidden_mat, obj.OutputWeights);
-            [~, prediction_mat] = max(output_mat,[],1);
-
-            num_samples = size(input_data,1);
-            prediction = cell(num_samples,1);
-            prec = 0;
-            for index_sample=1:num_samples
-                time_steps = size(input_data{index_sample},2);
-                prediction_sample = prediction_mat(prec+1:prec+time_steps);
-                prediction{index_sample} = categorical(prediction_sample);
-                prec = prec + time_steps;
-            end
         end
 
-
-        function [prediction, hidden] = classify(obj, input_data)
+        function prediction = classifySeq2Seq(obj, input_data)
             hidden = hiddenState(obj, input_data);
             hidden_mat = cell2mat(hidden');
 
@@ -137,6 +124,24 @@ classdef ContinuousReservoirComputing
                 prediction_sample = prediction_mat(prec+1:prec+time_steps);
                 prediction{index_sample} = categorical(prediction_sample);
                 prec = prec + time_steps;
+            end
+        end
+
+        function prediction = classifySeq2Vec(obj, input_data)
+            [~, ~, pooler] = hiddenState(obj, input_data);
+            pooler_mat = cell2mat(pooler');
+
+            output_mat = readout(pooler_mat, obj.OutputWeights);
+            [~, prediction_mat] = max(output_mat,[],1);
+
+            num_samples = size(input_data,1);
+            prediction = cell(num_samples,1);
+            prec = 0;
+            for index_sample=1:num_samples
+                % time_steps is equal to 1
+                prediction_sample = prediction_mat(prec+1);
+                prediction{index_sample} = categorical(prediction_sample);
+                prec = prec + 1;
             end
         end
 
