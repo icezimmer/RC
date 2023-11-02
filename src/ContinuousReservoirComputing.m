@@ -102,11 +102,10 @@ classdef ContinuousReservoirComputing
             hidden_washout_mat = cell2mat(hidden_washout');
             % hidden_mat = cell2mat(hidden');
             
-            target_data_t = target_data';
-            target_data_t = washout(target_data_t, obj.Transient);
-            target_data_mat = onehotencode([target_data_t{:}], 1);
+            target_data_washout = washout(target_data', obj.Transient);
+            target_data_washout_mat = onehotencode([target_data_washout{:}], 1);
 
-            obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization);
+            obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_washout_mat, obj.Regularization);
         end
 
         function prediction = classifySeq2Seq(obj, input_data)

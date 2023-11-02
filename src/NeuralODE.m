@@ -46,8 +46,7 @@ classdef NeuralODE
 
         function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)
             obj.Bias = bias(length(obj.HiddenWeights), obj.BiasScaling, obj.Seed);
-            input_data_t = input_data';
-            input_data_mat = cell2mat(input_data_t);
+            input_data_mat = cell2mat(input_data');
 
             hidden_mat = zeros([length(obj.HiddenWeights), length(input_data), obj.TimeSteps]);
             hidden_mat_0 = obj.InputNetwork(input_data_mat);
@@ -103,64 +102,35 @@ classdef NeuralODE
         end
 
 
-        function obj = fit(obj, input_data, target_data)
+        function obj = fitInitialCondition(obj, input_data, target_data)
             [~, ~, pooler] = hiddenState(obj, input_data);
-            pooler_t = pooler';
-            pooler_mat = cell2mat(pooler_t);
-            target_data_t = target_data';
-            target_data_mat = onehotencode(target_data_t, 1);
+            pooler_mat = cell2mat(pooler');
+            target_data_mat = onehotencode(target_data', 1);
 
 
             obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
 
-            % [~,hidden_washout] = hiddenState(obj, input_data);
-            % hidden_washout_mat = cell2mat(hidden_washout');
-            % target_data_t = target_data';
-            % 
-            % target_data_mat_start = onehotencode(target_data_t, 1);
-            % target_data_mat = zeros(size(target_data_mat_start,1),0);
-            % sizes = cellfun(@size,hidden_washout,'UniformOutput',false);
-            % for index = 1:numel(hidden_washout)
-            %     target_data_mat = cat(2,target_data_mat,target_data_mat_start(:,index)*ones(1,sizes{index}(2)));
-            % end
-            % 
-            % obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_mat, obj.Regularization);
+            % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
+            adjoint_ODE = @(x) -x'*obj.HiddenWeights;
 
-            % da(t)/dt =-a(t)'*df/dh
-            adjoint_EDO = @(x) -x'*obj.HiddenWeights;
-            % a(T) = dL/dh(T)
-            adjoint_T = (obj.OutputNetwork(pooler_mat, obj.OutputWeights) - target_data_mat)' * obj.OutputWeights;
+            % Compute the initial condition a(T):
+            % a(T) = dL/dh(T) = ((y - d)' * OutputWeights(:,1:end-1))' =
+            % = (OutputWeights(:,1:end-1))' * (y - d)
+            % We leave the last column to leave the bias weights
+            adjoint_mat_T = (obj.OutputWeights(:,1:end-1))' * (obj.OutputNetwork(pooler_mat, obj.OutputWeights) - target_data_mat);
 
-            % Leave the bias (last component) and transpose
-            adjoint_T = adjoint_T(:,1:end-1)';
-
+            % Discretization of the solution a(t): from a(T) to a(0)
             adjoint_mat = zeros([length(obj.HiddenWeights), length(target_data), obj.TimeSteps]);
-
-            adjoint_mat(:,:,1) = adjoint_T;
+            adjoint_mat(:,:,1) = adjoint_mat_T;
             for t=1:obj.TimeSteps
-                adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) + (obj.StepSize*adjoint_EDO(adjoint_mat(:,:,t)))';
+                adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) + (obj.StepSize * adjoint_ODE(adjoint_mat(:,:,t)))';
             end
+
+            % Upgrade the initial condition h(0) by SGD:
             % h(0)_new = h(0)_old - dL/dh(0) = h(0)_old - a(0)
             obj.InputNetwork = @(x) obj.InputNetwork(x) - adjoint_mat(:,:,end);
         end
 
-
-        % function prediction = classify(obj, input_data)
-        %     hidden = hiddenState(obj, input_data);
-        %     hidden_mat = cell2mat(hidden');
-        % 
-        %     output_mat = obj.OutputNetwork(hidden_mat, obj.OutputWeights);
-        %     [~, prediction_mat] = max(output_mat,[],1);
-        % 
-        %     num_samples = size(input_data,1);
-        %     prediction = cell(num_samples,1);
-        %     prec = 0;
-        %     for index_sample=1:num_samples
-        %         prediction_sample = prediction_mat(prec+1:prec+obj.TimeSteps+1);
-        %         prediction{index_sample} = categorical(prediction_sample);
-        %         prec = prec + obj.TimeSteps+1;
-        %     end
-        % end
 
         function prediction = classify(obj, input_data)
             [~, ~, pooler] = hiddenState(obj, input_data);
