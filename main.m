@@ -1,4 +1,4 @@
-addpath src
+addpath('NeuralODE', 'ContinuousReservoirComputing', 'DiscreteReservoirComputing', 'src');
 
 [input_data, target_data] = dataLoader();
 [~, time_steps, num_samples] = size(input_data);
