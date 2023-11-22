@@ -102,7 +102,7 @@ classdef NeuralODE
         end
 
 
-        function obj = fitInitialCondition(obj, input_data, target_data)
+        function obj = fitIC(obj, input_data, target_data)
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
             target_data_mat = onehotencode(target_data', 1);
@@ -114,6 +114,7 @@ classdef NeuralODE
             adjoint_ODE = @(x) -x'*obj.HiddenWeights;
 
             % Compute the initial condition a(T):
+            % L(y) = (y - d)' * (y - d), where y = OuputWeights * [h(T); 1]
             % a(T) = dL/dh(T) = ((y - d)' * OutputWeights(:,1:end-1))' =
             % = (OutputWeights(:,1:end-1))' * (y - d)
             % We leave the last column to leave the bias weights
@@ -122,8 +123,9 @@ classdef NeuralODE
             % Discretization of the solution a(t): from a(T) to a(0)
             adjoint_mat = zeros([length(obj.HiddenWeights), length(target_data), obj.TimeSteps]);
             adjoint_mat(:,:,1) = adjoint_mat_T;
+            % Using Euler method in reverse
             for t=1:obj.TimeSteps
-                adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) + (obj.StepSize * adjoint_ODE(adjoint_mat(:,:,t)))';
+                adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) - obj.StepSize * (adjoint_ODE(adjoint_mat(:,:,t)))';
             end
 
             % Upgrade the initial condition h(0) by SGD:
@@ -132,23 +134,112 @@ classdef NeuralODE
         end
 
 
-        function prediction = classify(obj, input_data)
+        function obj = fitODE(obj, input_data, target_data)
+            [hidden, ~, pooler] = hiddenState(obj, input_data);
+            hidden_mat = cell2mat(hidden');
+            pooler_mat = cell2mat(pooler');
+            target_data_mat = onehotencode(target_data', 1);
+
+
+            obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
+
+            % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
+            adjoint_ODE = @(x) -x'*obj.HiddenWeights;
+
+            % Compute the initial condition a(T):
+            % L(y) = (y - d)' * (y - d), where y = OuputWeights * [h(T); 1]
+            % a(T) = dL/dh(T) = ((y - d)' * OutputWeights(:,1:end-1))' =
+            % = (OutputWeights(:,1:end-1))' * (y - d)
+            % We leave the last column to leave the bias weights
+            adjoint_mat_T = (obj.OutputWeights(:,1:end-1))' * (obj.OutputNetwork(pooler_mat, obj.OutputWeights) - target_data_mat);
+
+            % Discretization of the solution a(t): from a(T) to a(0)
+            adjoint_mat = zeros([length(obj.HiddenWeights), length(target_data), obj.TimeSteps]);
+            adjoint_mat(:,:,1) = adjoint_mat_T;
+            % Using Euler method in reverse
+            for t=1:obj.TimeSteps
+                adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) - obj.StepSize * (adjoint_ODE(adjoint_mat(:,:,t)))';
+            end
+
+            % Compute dL/dTheta, where Theta are the parameters of ODE f
+            % dL/dTheta = Integral(a(t)' * df/dTheta, dt, [0,T])
+            % We approximate it by the trapezoidal rule
+            % dL/dTheta \approx a(t)' * df/dTheta = a(t)' * HiddenWeights
+            %dL_dTheta = pagemtimes(permute(adjoint_mat, [2, 1, 3]), hidden_mat, 'transpose', 'none');
+            
+        end
+
+
+        function obj = fitIVP(obj, input_data, target_data)
+            [~, ~, pooler] = hiddenState(obj, input_data);
+            pooler_mat = cell2mat(pooler');
+            target_data_mat = onehotencode(target_data', 1);
+
+
+            obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
+
+            % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
+            adjoint_ODE = @(x) -x'*obj.HiddenWeights;
+
+            % Compute the initial condition a(T):
+            % L(y) = (y - d)' * (y - d), where y = OuputWeights * [h(T); 1]
+            % a(T) = dL/dh(T) = ((y - d)' * OutputWeights(:,1:end-1))' =
+            % = (OutputWeights(:,1:end-1))' * (y - d)
+            % We leave the last column to leave the bias weights
+            adjoint_mat_T = (obj.OutputWeights(:,1:end-1))' * (obj.OutputNetwork(pooler_mat, obj.OutputWeights) - target_data_mat);
+
+            % Discretization of the solution a(t): from a(T) to a(0)
+            adjoint_mat = zeros([length(obj.HiddenWeights), length(target_data), obj.TimeSteps]);
+            adjoint_mat(:,:,1) = adjoint_mat_T;
+            % Using Euler method in reverse
+            for t=1:obj.TimeSteps
+                adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) - obj.StepSize * (adjoint_ODE(adjoint_mat(:,:,t)))';
+            end
+
+            % Compute dL/dTheta, where Theta are the parameters of ODE f
+            % dL/dTheta = Integral(a(t)' * df/dTheta, dt, [0,T])
+            % We approximate it by the trapezoidal rule
+            % dL/dTheta \approx a(t)' * df/dTheta = a(t)' * HiddenWeights
+
+            % Upgrade the initial condition h(0) by SGD:
+            % h(0)_new = h(0)_old - dL/dh(0) = h(0)_old - a(0)
+            obj.InputNetwork = @(x) obj.InputNetwork(x) - adjoint_mat(:,:,end);
+        end
+
+
+        function classification = classify(obj, input_data)
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
             output_mat = readout(pooler_mat, obj.OutputWeights);
-            [~, prediction_mat] = max(output_mat,[],1);
+            [~, classification_mat] = max(output_mat,[],1);
 
             num_samples = size(input_data,1);
-            prediction = cell(num_samples,1);
+            classification = cell(num_samples,1);
             prec = 0;
             for index_sample=1:num_samples
                 % time_steps is equal to 1
-                prediction_sample = prediction_mat(prec+1);
-                prediction{index_sample} = categorical(prediction_sample);
+                classification_sample = classification_mat(prec+1);
+                classification{index_sample} = categorical(classification_sample);
                 prec = prec + 1;
             end
         end
+
+        function regression = predict(obj, input_data)
+            [~, ~, pooler] = hiddenState(obj, input_data);
+            pooler_mat = cell2mat(pooler');
+
+            output_mat = readout(pooler_mat, obj.OutputWeights);
+
+            num_samples = size(input_data,1);
+            regression = cell(num_samples,1);
+            prec = 0;
+            for index_sample=1:num_samples
+                % time_steps is equal to 1
+                regression{index_sample} = output_mat(prec+1);
+                prec = prec + 1;
+            end
+        end        
 
 
     end
