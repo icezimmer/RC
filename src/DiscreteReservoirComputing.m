@@ -109,39 +109,71 @@ classdef DiscreteReservoirComputing
             obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_washout_mat, obj.Regularization);
         end
 
-        function prediction = classifySeq2Seq(obj, input_data)
-            hidden = hiddenState(obj, input_data);
-            hidden_mat = cell2mat(hidden');
-
-            output_mat = readout(hidden_mat, obj.OutputWeights);
-            [~, prediction_mat] = max(output_mat,[],1);
-
-            num_samples = size(input_data,1);
-            prediction = cell(num_samples,1);
-            prec = 0;
-            for index_sample=1:num_samples
-                time_steps = size(input_data{index_sample},2);
-                prediction_sample = prediction_mat(prec+1:prec+time_steps);
-                prediction{index_sample} = categorical(prediction_sample);
-                prec = prec + time_steps;
-            end
-        end
-
-        function prediction = classifySeq2Vec(obj, input_data)
+        function classification = classifySeq2Vec(obj, input_data)
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
             output_mat = readout(pooler_mat, obj.OutputWeights);
-            [~, prediction_mat] = max(output_mat,[],1);
+            [~, classification_mat] = max(output_mat,[],1);
 
             num_samples = size(input_data,1);
-            prediction = cell(num_samples,1);
+            classification = cell(num_samples,1);
             prec = 0;
             for index_sample=1:num_samples
                 % time_steps is equal to 1
-                prediction_sample = prediction_mat(prec+1);
-                prediction{index_sample} = categorical(prediction_sample);
+                classification_sample = classification_mat(prec+1);
+                classification{index_sample} = categorical(classification_sample);
                 prec = prec + 1;
+            end
+        end
+
+        function regression = predictSeq2Vec(obj, input_data)
+            [~, ~, pooler] = hiddenState(obj, input_data);
+            pooler_mat = cell2mat(pooler');
+
+            output_mat = readout(pooler_mat, obj.OutputWeights);
+
+            num_samples = size(input_data,1);
+            regression = cell(num_samples,1);
+            prec = 0;
+            for index_sample=1:num_samples
+                % time_steps is equal to 1
+                regression{index_sample} = output_mat(prec+1);
+                prec = prec + 1;
+            end
+        end        
+
+        function classification = classifySeq2Seq(obj, input_data)
+            hidden = hiddenState(obj, input_data);
+            hidden_mat = cell2mat(hidden');
+
+            output_mat = readout(hidden_mat, obj.OutputWeights);
+            [~, classification_mat] = max(output_mat,[],1);
+
+            num_samples = size(input_data,1);
+            classification = cell(num_samples,1);
+            prec = 0;
+            for index_sample=1:num_samples
+                time_steps = size(input_data{index_sample},2);
+                classification_sample = classification_mat(prec+1:prec+time_steps);
+                classification{index_sample} = categorical(classification_sample);
+                prec = prec + time_steps;
+            end
+        end
+
+        function regression = predictSeq2Seq(obj, input_data)
+            hidden = hiddenState(obj, input_data);
+            hidden_mat = cell2mat(hidden');
+
+            output_mat = readout(hidden_mat, obj.OutputWeights);
+
+            num_samples = size(input_data,1);
+            regression = cell(num_samples,1);
+            prec = 0;
+            for index_sample=1:num_samples
+                time_steps = size(input_data{index_sample},2);
+                regression{index_sample} = output_mat(prec+1:prec+time_steps);
+                prec = prec + time_steps;
             end
         end
 
