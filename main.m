@@ -32,7 +32,7 @@ f = @(bias, input_weights, input, hidden_weights, hidden) tanh(bias + input_weig
 x0 = zeros(Nh,1);
 phi = @rungeKutta;
 eps = 0.0001;
-eigs = -1*ones(Nh,1); rho = 0.9;
+eigs = {[-1 0], ones(1,Nh)}; rho = 0.9;
 dns = 0.1; a = 0.5;
 %a = 0.1;
 ws = 40;
@@ -40,16 +40,16 @@ lambda_r = 0.1;
 %Nl = 1;
 seed = 1;
 
-%crc = ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, ws, lambda_r, seed);
-drc = DiscreteReservoirComputing(Nu, omega_in, omega_b, Nh, x0, rho, dns, a, ws, lambda_r, seed);
+rc = ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, ws, lambda_r, seed);
+%rc = DiscreteReservoirComputing(Nu, omega_in, omega_b, Nh, x0, rho, dns, a, ws, lambda_r, seed);
 
-drc = drc.fit(dv_layer_in,dv_layer_tg);
-pred_tr = drc.classifySeq2Seq(dv_layer_in);
+rc = rc.fit(dv_layer_in,dv_layer_tg);
+pred_tr = rc.classifySeq2Seq(dv_layer_in);
 figure
 confusionchart([dv_layer_tg{:,:}], [pred_tr{:,:}]);
 title("TR")
 
-pred_ts = drc.classifySeq2Seq(ts_layer_in);
+pred_ts = rc.classifySeq2Seq(ts_layer_in);
 figure
 confusionchart([ts_layer_tg{:,:}], [pred_ts{:,:}]);
 title("TS")

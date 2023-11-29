@@ -3,9 +3,10 @@ classdef NeuralODE
     %   Detailed eobj.Hiddenplanation goes here
 
     properties
+        % Input Network attributes
         InputNetwork
+        % Hidden Network attributes
         HiddenSize
-        OutputNetwork
         BiasScaling
         TimeSteps
         OdeFunction
@@ -13,20 +14,21 @@ classdef NeuralODE
         StepSize
         Spectrum
         Transient
-        Regularization
         %LayersNumber
         Seed
         Bias
         HiddenWeights
         %HiddenHiddenWeights
+        % Output Network attributes
+        Regularization
         OutputWeights
+        OutputNetwork
     end
 
     methods
-        function obj = NeuralODE(f_in, Nz, f_out, omega_b, T, f, phi, eps, eigs, ws, lambda_r, seed)
-            obj.InputNetwork = f_in;
+        function obj = NeuralODE(Nz, omega_b, T, f, phi, eps, eigs, ws, lambda_r, seed)
+            obj.InputNetwork = @(x) inputAugmentation(x, Nz);
             obj.HiddenSize = Nz;
-            obj.OutputNetwork = f_out;
             obj.BiasScaling = omega_b;
             obj.TimeSteps = floor(T/eps);
             obj.OdeFunction = f;
@@ -34,18 +36,19 @@ classdef NeuralODE
             obj.StepSize = eps;
             obj.Spectrum = eigs;
             obj.Transient = ws;
-            obj.Regularization = lambda_r;
             %obj.LayersNumber = Nl;
             obj.Seed = seed;
-            obj.Bias = [];
+            % We set bias and hidden weights at the start (fixed parameters)
+            obj.Bias = bias(Nz, omega_b, seed);
             obj.HiddenWeights = continuousStateMatrix(eigs, seed);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
+            obj.Regularization = lambda_r;
             obj.OutputWeights = [];
+            obj.OutputNetwork = [];
         end
 
 
-        function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)
-            obj.Bias = bias(length(obj.HiddenWeights), obj.BiasScaling, obj.Seed);
+        function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)         
             input_data_mat = cell2mat(input_data');
 
             hidden_mat = zeros([length(obj.HiddenWeights), length(input_data), obj.TimeSteps]);
@@ -105,7 +108,8 @@ classdef NeuralODE
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
-            output_mat = readout(pooler_mat, obj.OutputWeights);
+            %output_mat = readout(pooler_mat, obj.OutputWeights);
+            output_mat = obj.OutputNetwork(pooler_mat);
             [~, classification_mat] = max(output_mat,[],1);
 
             num_samples = size(input_data,1);
@@ -123,7 +127,8 @@ classdef NeuralODE
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
-            output_mat = readout(pooler_mat, obj.OutputWeights);
+            % output_mat = readout(pooler_mat, obj.OutputWeights);
+            output_mat = obj.OutputNetwork(pooler_mat);
 
             num_samples = size(input_data,1);
             regression = cell(num_samples,1);
@@ -168,7 +173,8 @@ classdef NeuralODE
             target_data_mat = onehotencode(target_data', 1);
 
 
-            obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
+            obj = trainOutputNetworkOffline(obj, pooler_mat, target_data_mat);
+            %obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
 
             % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
             adjoint_ODE = @(x) -x'*obj.HiddenWeights;
@@ -178,7 +184,7 @@ classdef NeuralODE
             % a(T) = dL/dh(T) = ((y - d)' * OutputWeights(:,1:end-1))' =
             % = (OutputWeights(:,1:end-1))' * (y - d)
             % We leave the last column to leave the bias weights
-            adjoint_mat_T = (obj.OutputWeights(:,1:end-1))' * (obj.OutputNetwork(pooler_mat, obj.OutputWeights) - target_data_mat);
+            adjoint_mat_T = (obj.OutputWeights(:,1:end-1))' * (obj.OutputNetwork(pooler_mat) - target_data_mat);
 
             % Discretization of the solution a(t): from a(T) to a(0)
             adjoint_mat = zeros([length(obj.HiddenWeights), length(target_data), obj.TimeSteps]);
@@ -190,9 +196,13 @@ classdef NeuralODE
 
             % Learn ODE
             % Compute dL/dTheta, where Theta are the parameters of ODE f
-            % dL/dTheta = Integral(a(t)' * df/dTheta, dt, [0,T])
+            % dL/dTheta(t) = dL/dTheta(0) + Integral(a(t)' * df/dTheta, dt, [0,t])
+            % = dL/dTheta(T) + Integral(-a(t)' * df/dTheta, dt, [T,t])
+            % = Integral(-a(t)' * df/dTheta, dt, [T,t]), being IC = 0
+            % So dL/dTheta(0) = Integral(-a(t)' * df/dTheta, dt, [T,0])
             % We approximate it by the trapezoidal rule
-            % dL/dTheta \approx a(t)' * df/dTheta = a(t)' * HiddenWeights
+            % dL/dTheta \approx a(t)' * df/dTheta = a(t)' * h(t)
+            % supposing f(t,h(t),Theta) = HiddenWeights * h(t) + bias.
             %dL_dTheta = pagemtimes(permute(adjoint_mat, [2, 1, 3]), hidden_mat, 'transpose', 'none');
             
         end
@@ -204,7 +214,8 @@ classdef NeuralODE
             target_data_mat = onehotencode(target_data', 1);
 
 
-            obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
+            obj = trainOutputNetworkOffline(obj, pooler_mat, target_data_mat);
+            % obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
 
             % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
             adjoint_ODE = @(x) -x'*obj.HiddenWeights;

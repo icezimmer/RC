@@ -1,6 +1,6 @@
 classdef ContinuousReservoirComputing
-    %UNTITLED Summary of this class goes here
-    %   Detailed eobj.Hiddenplanation goes here
+    % input_data must be a cell array of size num_sample * 1,
+    % where each cell is an array of size dim * time_steps
 
     properties
         InputDimension
@@ -13,13 +13,13 @@ classdef ContinuousReservoirComputing
         StepSize
         Spectrum
         Transient
-        Regularization
         %LayersNumber
         Seed
         Bias
         InputWeights
         HiddenWeights
         %HiddenHiddenWeights
+        Regularization
         OutputWeights
     end
 
@@ -35,26 +35,27 @@ classdef ContinuousReservoirComputing
             obj.StepSize = eps;
             obj.Spectrum = eigs;
             obj.Transient = ws;
-            obj.Regularization = lambda_r;
             %obj.LayersNumber = Nl;
             obj.Seed = seed;
             obj.Bias = bias(Nh, omega_b, seed);
             obj.InputWeights = inputMatrix(Nu, omega_in, Nh, seed);
             obj.HiddenWeights = continuousStateMatrix(eigs, seed);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
+            obj.Regularization = lambda_r;
             obj.OutputWeights = [];
             %end
         end
 
 
         function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)
-            pooler = cell(size(input_data,1), 1);
-            hidden = cell(size(input_data,1), 1);
-            hidden_washout = cell(size(input_data,1), 1);
-            %hidden = cell(size(input_data,1), obj.LayersNumber);
-            %hidden_washout = cell(size(input_data,1), obj.LayersNumber);
-
             num_samples = size(input_data,1);
+            
+            pooler = cell(num_samples, 1);
+            hidden = cell(num_samples, 1);
+            hidden_washout = cell(num_samples, 1);
+            %hidden = cell(num_samples, obj.LayersNumber);
+            %hidden_washout = cell(num_samples, obj.LayersNumber);
+
             for index_sample=1:num_samples
                 time_steps = size(input_data{index_sample},2);
                 input_sample = input_data{index_sample};
@@ -102,17 +103,17 @@ classdef ContinuousReservoirComputing
             hidden_washout_mat = cell2mat(hidden_washout');
             % hidden_mat = cell2mat(hidden');
             
-            target_data_washout = washout(target_data', obj.Transient);
+            target_data_washout = washOut(obj, target_data');
             target_data_washout_mat = onehotencode([target_data_washout{:}], 1);
 
-            obj.OutputWeights = trainOffline(hidden_washout_mat, target_data_washout_mat, obj.Regularization);
+            obj = trainOutputWeightsOffline(obj, hidden_washout_mat, target_data_washout_mat);
         end
 
         function classification = classifySeq2Vec(obj, input_data)
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
-            output_mat = readout(pooler_mat, obj.OutputWeights);
+            output_mat = readOut(obj, pooler_mat);
             [~, classification_mat] = max(output_mat,[],1);
 
             num_samples = size(input_data,1);
@@ -130,7 +131,7 @@ classdef ContinuousReservoirComputing
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
-            output_mat = readout(pooler_mat, obj.OutputWeights);
+            output_mat = readOut(obj, pooler_mat);
 
             num_samples = size(input_data,1);
             regression = cell(num_samples,1);
@@ -146,7 +147,7 @@ classdef ContinuousReservoirComputing
             hidden = hiddenState(obj, input_data);
             hidden_mat = cell2mat(hidden');
 
-            output_mat = readout(hidden_mat, obj.OutputWeights);
+            output_mat = readOut(obj, hidden_mat);
             [~, classification_mat] = max(output_mat,[],1);
 
             num_samples = size(input_data,1);
@@ -164,7 +165,7 @@ classdef ContinuousReservoirComputing
             hidden = hiddenState(obj, input_data);
             hidden_mat = cell2mat(hidden');
 
-            output_mat = readout(hidden_mat, obj.OutputWeights);
+            output_mat = readOut(obj, hidden_mat);
 
             num_samples = size(input_data,1);
             regression = cell(num_samples,1);

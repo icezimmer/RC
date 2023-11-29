@@ -4,17 +4,19 @@ function obj = fitIC1epoch(obj, input_data, target_data)
     target_data_mat = onehotencode(target_data', 1);
 
 
-    obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
+    obj = trainOutputNetworkOffline(obj, pooler_mat, target_data_mat);
+    %obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
 
     % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
     adjoint_ODE = @(x) -x'*obj.HiddenWeights;
 
     % Compute the initial condition a(T):
-    % L(y) = (y - d)' * (y - d), where y = OuputWeights * [h(T); 1]
+    % L(y) = (y - d)' * (y - d), where y = f_out(h(T)) = OuputWeights * [h(T); 1]
+    % Supposing that L depends only on f_out(h(T)) and not on all h(t)
     % a(T) = dL/dh(T) = ((y - d)' * OutputWeights(:,1:end-1))' =
     % = (OutputWeights(:,1:end-1))' * (y - d)
     % We leave the last column to leave the bias weights
-    adjoint_mat_T = (obj.OutputWeights(:,1:end-1))' * (obj.OutputNetwork(pooler_mat, obj.OutputWeights) - target_data_mat);
+    adjoint_mat_T = (obj.OutputWeights(:,1:end-1))' * (obj.OutputNetwork(pooler_mat) - target_data_mat);
 
     % Discretization of the solution a(t): from a(T) to a(0)
     adjoint_mat = zeros([length(obj.HiddenWeights), length(target_data), obj.TimeSteps]);
