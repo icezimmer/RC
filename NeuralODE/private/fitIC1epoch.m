@@ -5,7 +5,6 @@ function obj = fitIC1epoch(obj, input_data, target_data)
 
 
     obj = trainOutputNetworkOffline(obj, pooler_mat, target_data_mat);
-    %obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
 
     % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
     adjoint_ODE = @(x) -x'*obj.HiddenWeights;

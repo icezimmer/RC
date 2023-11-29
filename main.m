@@ -1,4 +1,4 @@
-addpath('NeuralODE', 'ContinuousReservoirComputing', 'DiscreteReservoirComputing', 'utils');
+addpath('ODESolver', 'ContinuousReservoirComputing', 'DiscreteReservoirComputing', 'utils');
 
 [input_data, target_data] = dataLoader();
 [~, time_steps, num_samples] = size(input_data);

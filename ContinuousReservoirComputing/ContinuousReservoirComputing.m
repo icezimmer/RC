@@ -1,6 +1,7 @@
 classdef ContinuousReservoirComputing
-    % input_data must be a cell array of size num_sample * 1,
-    % where each cell is an array of size dim * time_steps
+    % Data must be cell array of size [num_sample * 1],
+    % where each cell is an array of size [dim * time_steps],
+    % where dim is the dimension of the space
 
     properties
         InputDimension

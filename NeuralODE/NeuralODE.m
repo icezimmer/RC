@@ -1,6 +1,9 @@
 classdef NeuralODE
-    %UNTITLED Summary of this class goes here
-    %   Detailed eobj.Hiddenplanation goes here
+    % Data are taken in input and given in output as cell array of size
+    % [num_sample * 1], where each cell is an array of size [dim * 1] and
+    % dim is the dimension of the space.
+    % The trajectories (in hidden space) are tensor of size [dim * num_samples * time_steps],
+    % where dim is the dimension of the space
 
     properties
         % Input Network attributes
@@ -48,10 +51,13 @@ classdef NeuralODE
         end
 
 
-        function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)         
+        function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)
+
+            num_samples = length(input_data);
+
             input_data_mat = cell2mat(input_data');
 
-            hidden_mat = zeros([length(obj.HiddenWeights), length(input_data), obj.TimeSteps]);
+            hidden_mat = zeros([obj.HiddenSize, num_samples, obj.TimeSteps]);
             hidden_mat_0 = obj.InputNetwork(input_data_mat);
 
             hidden_mat(:,:,1) = hidden_mat_0;
@@ -108,7 +114,6 @@ classdef NeuralODE
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
-            %output_mat = readout(pooler_mat, obj.OutputWeights);
             output_mat = obj.OutputNetwork(pooler_mat);
             [~, classification_mat] = max(output_mat,[],1);
 
@@ -127,7 +132,6 @@ classdef NeuralODE
             [~, ~, pooler] = hiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
-            % output_mat = readout(pooler_mat, obj.OutputWeights);
             output_mat = obj.OutputNetwork(pooler_mat);
 
             num_samples = size(input_data,1);
@@ -142,13 +146,17 @@ classdef NeuralODE
 
         function obj = fitIC2classify(obj, input_data, target_data)
             accuracy = @(y,d) 100 * sum(y == d) / length(d);
+
             % We must fit at leat 1 epoch before to classify because the
-            % output weight matrix and the bias initially are [] 
+            % output weights matrix and the output network initially are [] 
             obj = fitIC1epoch(obj, input_data, target_data);
+
             output_data = classify(obj, input_data);
             output_data = [output_data{:}];
+
             accuracy_new = accuracy(output_data(:), target_data(:));
             disp(['Accuracy: ', num2str(accuracy_new)])
+
             count = 0;
             while(count < 3)
                 obj = fitIC1epoch(obj, input_data, target_data);
@@ -174,7 +182,6 @@ classdef NeuralODE
 
 
             obj = trainOutputNetworkOffline(obj, pooler_mat, target_data_mat);
-            %obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
 
             % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
             adjoint_ODE = @(x) -x'*obj.HiddenWeights;
@@ -215,7 +222,6 @@ classdef NeuralODE
 
 
             obj = trainOutputNetworkOffline(obj, pooler_mat, target_data_mat);
-            % obj.OutputWeights = trainOffline(pooler_mat, target_data_mat, obj.Regularization);
 
             % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
             adjoint_ODE = @(x) -x'*obj.HiddenWeights;
