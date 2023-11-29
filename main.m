@@ -1,4 +1,4 @@
-addpath('NeuralODE', 'ContinuousReservoirComputing', 'DiscreteReservoirComputing', 'src');
+addpath('NeuralODE', 'ContinuousReservoirComputing', 'DiscreteReservoirComputing', 'utils');
 
 [input_data, target_data] = dataLoader();
 [~, time_steps, num_samples] = size(input_data);
@@ -30,8 +30,9 @@ omega_b = 0.2;
 Nh = 100;
 f = @(bias, input_weights, input, hidden_weights, hidden) tanh(bias + input_weights*input + hidden_weights*hidden);
 x0 = zeros(Nh,1);
-phi = @rungeKutta;
 eps = 0.0001;
+ode_solver = ODESolver(f, eps);
+phi = @ode_solver.rungeKutta;
 eigs = {[-1 0], ones(1,Nh)}; rho = 0.9;
 dns = 0.1; a = 0.5;
 %a = 0.1;

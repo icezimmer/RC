@@ -49,7 +49,7 @@ classdef ContinuousReservoirComputing
 
         function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)
             num_samples = size(input_data,1);
-            
+
             pooler = cell(num_samples, 1);
             hidden = cell(num_samples, 1);
             hidden_washout = cell(num_samples, 1);
@@ -63,7 +63,7 @@ classdef ContinuousReservoirComputing
                 hidden_sample = zeros(obj.NeuronsNumber,time_steps+1);
                 hidden_sample(:,1) = obj.InitialCondition;
                 for t=1:time_steps
-                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.OdeFunction, obj.StepSize, obj.InputWeights, input_sample(:,t));
+                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.InputWeights, input_sample(:,t));
                 end
 
                 pooler{index_sample,1} = hidden_sample(:,end);
