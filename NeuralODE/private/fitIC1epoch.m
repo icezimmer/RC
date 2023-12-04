@@ -1,5 +1,6 @@
 function obj = fitIC1epoch(obj, input_data, target_data)
-    [~, ~, pooler] = hiddenState(obj, input_data);
+    %[~, ~, pooler] = hiddenState(obj, input_data);
+    pooler = finalHiddenState(obj, input_data);
     pooler_mat = cell2mat(pooler');
     target_data_mat = onehotencode(target_data', 1);
 
@@ -18,11 +19,13 @@ function obj = fitIC1epoch(obj, input_data, target_data)
     adjoint_mat_T = (obj.OutputWeights(:,1:end-1))' * (obj.OutputNetwork(pooler_mat) - target_data_mat);
 
     % Discretization of the solution a(t): from a(T) to a(0)
-    adjoint_mat = zeros([length(obj.HiddenWeights), length(target_data), obj.TimeSteps]);
-    adjoint_mat(:,:,1) = adjoint_mat_T;
+    %adjoint_mat = zeros([length(obj.HiddenWeights), length(target_data), obj.TimeSteps]);
+    %adjoint_mat(:,:,1) = adjoint_mat_T;
+    adjoint_mat = adjoint_mat_T;
     % Using Euler method in reverse
     for t=1:obj.TimeSteps
-        adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) - obj.StepSize * (adjoint_ODE(adjoint_mat(:,:,t)))';
+        %adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) - obj.StepSize * (adjoint_ODE(adjoint_mat(:,:,t)))';
+        adjoint_mat = adjoint_mat - obj.StepSize * (adjoint_ODE(adjoint_mat))';
     end
 
     % Learn IC
@@ -32,5 +35,6 @@ function obj = fitIC1epoch(obj, input_data, target_data)
     % L'apprendimento della condizione iniziale è diversa per ciascun input
     % Quindi se apprendiamo le IC del training set
     % non possiamo generalizzare l'apprendimento alle IC del validation set
-    obj.InputNetwork = @(x) obj.InputNetwork(x) - adjoint_mat(:,:,end);
+    %obj.InputNetwork = @(x) obj.InputNetwork(x) - adjoint_mat(:,:,end);
+    obj.InputNetwork = @(x) obj.InputNetwork(x) - adjoint_mat;
 end

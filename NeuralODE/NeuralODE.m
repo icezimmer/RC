@@ -4,6 +4,7 @@ classdef NeuralODE
     % dim is the dimension of the space.
     % The trajectories (in hidden space) are tensor of size [dim * num_samples * time_steps],
     % where dim is the dimension of the space
+    % The label of target data for classification are {1,...,num_classes}
 
     properties
         % Input Network attributes
@@ -29,13 +30,14 @@ classdef NeuralODE
     end
 
     methods
-        function obj = NeuralODE(Nz, omega_b, T, f, phi, eps, eigs, ws, lambda_r, seed)
+        %function obj = NeuralODE(Nz, omega_b, T, f, phi, eps, eigs, ws, lambda_r, seed)
+        function obj = NeuralODE(Nz, omega_b, T, eps, eigs, ws, lambda_r, seed)
             obj.InputNetwork = @(x) inputAugmentation(x, Nz);
             obj.HiddenSize = Nz;
             obj.BiasScaling = omega_b;
             obj.TimeSteps = floor(T/eps);
-            obj.OdeFunction = f;
-            obj.NumericalMethod = phi;
+            %obj.OdeFunction = f;
+            %obj.NumericalMethod = phi;
             obj.StepSize = eps;
             obj.Spectrum = eigs;
             obj.Transient = ws;
@@ -44,6 +46,7 @@ classdef NeuralODE
             % We set bias and hidden weights at the start (fixed parameters)
             obj.Bias = bias(Nz, omega_b, seed);
             obj.HiddenWeights = continuousStateMatrix(eigs, seed);
+            obj.OdeFunction = @(z) obj.HiddenWeights * z + obj.Bias;
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.Regularization = lambda_r;
             obj.OutputWeights = [];
@@ -54,6 +57,11 @@ classdef NeuralODE
         function [hidden, hidden_washout, pooler] = hiddenState(obj, input_data)
 
             num_samples = length(input_data);
+            
+            % Flat the input data and cast to double
+            flatten = @(x) reshape(x, [], 1);
+            input_data = cellfun(flatten, input_data, 'UniformOutput', false);
+            input_data = cellfun(@double, input_data, 'UniformOutput', false);
 
             input_data_mat = cell2mat(input_data');
 
@@ -63,7 +71,8 @@ classdef NeuralODE
             hidden_mat(:,:,1) = hidden_mat_0;
             for t=1:obj.TimeSteps
                 %hidden_mat(:,:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_mat(:,:,t), obj.OdeFunction, obj.StepSize);
-                hidden_mat(:,:,t+1) = hidden_mat(:,:,t) + obj.StepSize * obj.OdeFunction(obj.Bias, obj.HiddenWeights, hidden_mat(:,:,t));
+                %hidden_mat(:,:,t+1) = hidden_mat(:,:,t) + obj.StepSize * obj.OdeFunction(obj.Bias, obj.HiddenWeights, hidden_mat(:,:,t));
+                hidden_mat(:,:,t+1) = hidden_mat(:,:,t) + obj.StepSize * obj.OdeFunction(hidden_mat(:,:,t));
             end
 
             hidden_washout_mat = hidden_mat(:,:,obj.Transient+1:end);
@@ -72,7 +81,7 @@ classdef NeuralODE
             hidden = arrayfun(@(k) squeeze(hidden_mat(:,k,:)), 1:size(hidden_mat,2), 'UniformOutput', false);
             hidden_washout = arrayfun(@(k) squeeze(hidden_washout_mat(:,k,:)), 1:size(hidden_washout_mat,2), 'UniformOutput', false);
             pooler = arrayfun(@(k) squeeze(pooler_mat(:,k,:)), 1:size(pooler_mat,2), 'UniformOutput', false);
-            % Transpose the cell array to get N x 1 shape
+            % Transpose the cell array to get num_samples x 1 shape
             hidden = hidden';
             hidden_washout = hidden_washout';
             pooler = pooler';
@@ -111,65 +120,81 @@ classdef NeuralODE
         end
 
         function classification = classify(obj, input_data)
-            [~, ~, pooler] = hiddenState(obj, input_data);
+            pooler = finalHiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
             output_mat = obj.OutputNetwork(pooler_mat);
-            [~, classification_mat] = max(output_mat,[],1);
+            [~, classification_mat] = max(output_mat, [], 1);
+            classification = num2cell(classification_mat');
+            classification = cellfun(@categorical, classification, 'UniformOutput', false);
 
-            num_samples = size(input_data,1);
-            classification = cell(num_samples,1);
-            prec = 0;
-            for index_sample=1:num_samples
-                % time_steps is equal to 1
-                classification_sample = classification_mat(prec+1);
-                classification{index_sample} = categorical(classification_sample);
-                prec = prec + 1;
+        end
+
+        function confusionMatrix(obj, input_data, target_data)
+            if(isa(target_data,"categorical"))
+                % Predict on input data
+                predicted_data = obj.classify(input_data);
+
+                % Convert to {1, ..., num_classes} categories
+                target_data = grp2idx(target_data);
+                num_classes = length(unique(target_data));
+                labels = arrayfun(@num2str, 1:num_classes, 'UniformOutput', false);
+                target_data = categorical(target_data, 1:num_classes, labels);
+
+                % Plot Confusion Matrix
+                figure
+                confusionchart(target_data, [predicted_data{:}]);
             end
         end
 
         function regression = predict(obj, input_data)
-            [~, ~, pooler] = hiddenState(obj, input_data);
+            pooler = finalHiddenState(obj, input_data);
             pooler_mat = cell2mat(pooler');
 
             output_mat = obj.OutputNetwork(pooler_mat);
+            regression = num2cell(output_mat, 1)';
 
-            num_samples = size(input_data,1);
-            regression = cell(num_samples,1);
-            prec = 0;
-            for index_sample=1:num_samples
-                % time_steps is equal to 1
-                regression{index_sample} = output_mat(prec+1);
-                prec = prec + 1;
-            end
         end    
 
-        function obj = fitIC2classify(obj, input_data, target_data)
+        function best_net = fitIC2classify(obj, input_data, target_data)
+            % Convert to {1, ..., num_classes} categories
+            target_data = grp2idx(target_data);
+            num_classes = length(unique(target_data));
+            labels = arrayfun(@num2str, 1:num_classes, 'UniformOutput', false);
+            target_data = categorical(target_data, 1:num_classes, labels);
+
             accuracy = @(y,d) 100 * sum(y == d) / length(d);
 
             % We must fit at leat 1 epoch before to classify because the
             % output weights matrix and the output network initially are [] 
             obj = fitIC1epoch(obj, input_data, target_data);
+            best_net = obj;
 
             output_data = classify(obj, input_data);
             output_data = [output_data{:}];
 
             accuracy_new = accuracy(output_data(:), target_data(:));
-            disp(['Accuracy: ', num2str(accuracy_new)])
+            disp(['Accuracy: ', num2str(accuracy_new), '%'])
 
             count = 0;
-            while(count < 3)
+            max_accuracy = accuracy_new;
+            % Training using Early Stopping
+            while(count < 5)
+                accuracy_old = accuracy_new;
                 obj = fitIC1epoch(obj, input_data, target_data);
                 output_data = classify(obj, input_data);
                 output_data = [output_data{:}];
-                accuracy_old = accuracy_new;
                 accuracy_new = accuracy(output_data(:), target_data(:));
                 if(accuracy_new - accuracy_old > 0)
                     count = 0;
+                    if(accuracy_new > max_accuracy)
+                        best_net = obj;
+                        max_accuracy = accuracy_new;
+                    end
                 else
                     count = count + 1;
                 end
-                disp(['Accuracy: ', num2str(accuracy_new)])
+                disp(['Accuracy: ', num2str(accuracy_new), '%'])
             end
         end
 

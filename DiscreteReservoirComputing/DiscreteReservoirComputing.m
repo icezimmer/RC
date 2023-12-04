@@ -1,5 +1,5 @@
 classdef DiscreteReservoirComputing
-    % Data must be cell array of size [num_sample * 1],
+    % Data must be cell array of size [num_samples * 1],
     % where each cell is an array of size [dim * time_steps],
     % where dim is the dimension of the space
 
@@ -116,17 +116,9 @@ classdef DiscreteReservoirComputing
             pooler_mat = cell2mat(pooler');
 
             output_mat = readOut(obj, pooler_mat);
-            [~, classification_mat] = max(output_mat,[],1);
-
-            num_samples = size(input_data,1);
-            classification = cell(num_samples,1);
-            prec = 0;
-            for index_sample=1:num_samples
-                % time_steps is equal to 1
-                classification_sample = classification_mat(prec+1);
-                classification{index_sample} = categorical(classification_sample);
-                prec = prec + 1;
-            end
+            [~, classification_mat] = max(output_mat, [], 1);
+            classification = num2cell(classification_mat');
+            classification = cellfun(@categorical, classification, 'UniformOutput', false);
         end
 
         function regression = predictSeq2Vec(obj, input_data)
@@ -134,15 +126,7 @@ classdef DiscreteReservoirComputing
             pooler_mat = cell2mat(pooler');
 
             output_mat = readOut(obj, pooler_mat);
-
-            num_samples = size(input_data,1);
-            regression = cell(num_samples,1);
-            prec = 0;
-            for index_sample=1:num_samples
-                % time_steps is equal to 1
-                regression{index_sample} = output_mat(prec+1);
-                prec = prec + 1;
-            end
+            regression = num2cell(output_mat, 1)';
         end        
 
         function classification = classifySeq2Seq(obj, input_data)
