@@ -7,8 +7,9 @@ function obj = fitIC1epoch(obj, input_data, target_data)
 
     obj = trainOutputNetworkOffline(obj, pooler_mat, target_data_mat);
 
-    % Define the adjoint ODE: da(t)/dt = -a(t)'*df/dh
-    adjoint_ODE = @(x) -x'*obj.HiddenWeights;
+    % Define the adjoint ODE: da(t)/dt = (-a(t)'*df/dh)'
+    %adjoint_ODE = @(x) -x'*obj.HiddenWeights;
+    adjoint_ODE = @(x) -obj.HiddenWeights'*x;
 
     % Compute the initial condition a(T):
     % L(y) = (y - d)' * (y - d), where y = f_out(h(T)) = OuputWeights * [h(T); 1]
@@ -25,7 +26,10 @@ function obj = fitIC1epoch(obj, input_data, target_data)
     % Using Euler method in reverse
     for t=1:obj.TimeSteps
         %adjoint_mat(:,:,t+1) = adjoint_mat(:,:,t) - obj.StepSize * (adjoint_ODE(adjoint_mat(:,:,t)))';
-        adjoint_mat = adjoint_mat - obj.StepSize * (adjoint_ODE(adjoint_mat))';
+        %adjoint_mat = adjoint_mat - obj.StepSize * (adjoint_ODE(adjoint_mat))';
+        %adjoint_mat = obj.NumericalMethod(adjoint_ODE, adjoint_mat); but
+        %must be backward
+        adjoint_mat = adjoint_mat - obj.StepSize * adjoint_ODE(adjoint_mat);
     end
 
     % Learn IC

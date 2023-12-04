@@ -31,13 +31,13 @@ classdef NeuralODE
 
     methods
         %function obj = NeuralODE(Nz, omega_b, T, f, phi, eps, eigs, ws, lambda_r, seed)
-        function obj = NeuralODE(Nz, omega_b, T, eps, eigs, ws, lambda_r, seed)
+        function obj = NeuralODE(Nz, omega_b, T, phi, eps, eigs, ws, lambda_r, seed)
             obj.InputNetwork = @(x) inputAugmentation(x, Nz);
             obj.HiddenSize = Nz;
             obj.BiasScaling = omega_b;
             obj.TimeSteps = floor(T/eps);
             %obj.OdeFunction = f;
-            %obj.NumericalMethod = phi;
+            obj.NumericalMethod = phi;
             obj.StepSize = eps;
             obj.Spectrum = eigs;
             obj.Transient = ws;
@@ -46,7 +46,7 @@ classdef NeuralODE
             % We set bias and hidden weights at the start (fixed parameters)
             obj.Bias = bias(Nz, omega_b, seed);
             obj.HiddenWeights = continuousStateMatrix(eigs, seed);
-            obj.OdeFunction = @(z) obj.HiddenWeights * z + obj.Bias;
+            obj.OdeFunction = @(z) (obj.HiddenWeights * z + obj.Bias);
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.Regularization = lambda_r;
             obj.OutputWeights = [];
@@ -72,7 +72,8 @@ classdef NeuralODE
             for t=1:obj.TimeSteps
                 %hidden_mat(:,:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_mat(:,:,t), obj.OdeFunction, obj.StepSize);
                 %hidden_mat(:,:,t+1) = hidden_mat(:,:,t) + obj.StepSize * obj.OdeFunction(obj.Bias, obj.HiddenWeights, hidden_mat(:,:,t));
-                hidden_mat(:,:,t+1) = hidden_mat(:,:,t) + obj.StepSize * obj.OdeFunction(hidden_mat(:,:,t));
+                %hidden_mat(:,:,t+1) = hidden_mat(:,:,t) + obj.StepSize * obj.OdeFunction(hidden_mat(:,:,t));
+                hidden_mat(:,:,t+1) = obj.NumericalMethod(obj.OdeFunction, hidden_mat(:,:,t));
             end
 
             hidden_washout_mat = hidden_mat(:,:,obj.Transient+1:end);

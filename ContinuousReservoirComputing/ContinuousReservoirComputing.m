@@ -25,12 +25,12 @@ classdef ContinuousReservoirComputing
     end
 
     methods
-        function obj = ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, ws, lambda_r, seed)
+        %function obj = ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, f, x0, phi, eps, eigs, ws, lambda_r, seed)
+        function obj = ContinuousReservoirComputing(Nu, omega_in, omega_b, Nh, x0, phi, eps, eigs, ws, lambda_r, seed)
             obj.InputDimension = Nu;
             obj.InputScaling = omega_in;
             obj.BiasScaling = omega_b;
             obj.NeuronsNumber = Nh;
-            obj.OdeFunction = f;
             obj.InitialCondition = x0;
             obj.NumericalMethod = phi;
             obj.StepSize = eps;
@@ -41,6 +41,7 @@ classdef ContinuousReservoirComputing
             obj.Bias = bias(Nh, omega_b, seed);
             obj.InputWeights = inputMatrix(Nu, omega_in, Nh, seed);
             obj.HiddenWeights = continuousStateMatrix(eigs, seed);
+            obj.OdeFunction = @(x,u) obj.HiddenWeights * x + obj.InputWeights * u + obj.Bias;
             %obj.HiddenHiddenWeights = initInputMatrix(Nh, 1, Nh, seed, a);
             obj.Regularization = lambda_r;
             obj.OutputWeights = [];
@@ -64,7 +65,8 @@ classdef ContinuousReservoirComputing
                 hidden_sample = zeros(obj.NeuronsNumber,time_steps+1);
                 hidden_sample(:,1) = obj.InitialCondition;
                 for t=1:time_steps
-                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.InputWeights, input_sample(:,t));
+                    %hidden_sample(:,t+1) = obj.NumericalMethod(obj.Bias, obj.HiddenWeights, hidden_sample(:,t), obj.InputWeights, input_sample(:,t));
+                    hidden_sample(:,t+1) = obj.NumericalMethod(obj.OdeFunction, hidden_sample(:,t), input_sample(:,t));
                 end
 
                 pooler{index_sample,1} = hidden_sample(:,end);
